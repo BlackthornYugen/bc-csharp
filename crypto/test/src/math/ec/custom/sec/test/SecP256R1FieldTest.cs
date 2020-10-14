@@ -177,6 +177,54 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec.Tests
             Assert.AreEqual(expectedY, ecPoint.YCoord.ToBigInteger(), "Unexpected Y Coordinate");
         }
 
+        /// <summary>
+        /// This isn't actually a test, it just makes an alternate version of the nisttv.data file using bc.
+        /// </summary>
+        [Test]
+        public void CreateAlternateTestData()
+        {
+            var allLines = System.IO.File.ReadAllLines(@"../../../test/data/nisttv.data");
+            var stringBuilder = new StringBuilder();
+            X9ECParameters curve = null;
+
+            foreach (var line in allLines)
+            {
+                var capture = new Regex(@"^ ?(\w+):? =? ?(\w+)", RegexOptions.Compiled);
+                var data = capture.Match(line);
+                if (!data.Success) continue;
+                var nistKey = data.Groups[1].Value;
+                var nistValue = data.Groups[2].Value;
+                switch (nistKey)
+                {
+                    case "Curve":
+                        stringBuilder.AppendFormat("\n Curve: {0}\n-------------\n", nistValue);
+                        // Change curve name from LNNN to L-NNN ie: P256 to P-256
+                        nistValue = $"{nistValue.Substring(0, 1)}-{nistValue.Substring(1)}";
+
+                        curve = Asn1.Nist.NistNamedCurves.GetByName(nistValue);
+                        break;
+                    case "k" when curve == null:
+                        continue;
+                    case "k":
+                    {
+                        var k = new BigInteger(nistValue, 10);
+                        var ecPoint = curve.G.Multiply(k);
+                        stringBuilder.AppendFormat("{0} = {1}\n", nistKey, nistValue);
+                        stringBuilder.AppendFormat("x = {0}\n", ecPoint.XCoord.ToString().ToUpper());
+                        stringBuilder.AppendFormat("y = {0}\n", ecPoint.YCoord.ToString().ToUpper());
+                        stringBuilder.AppendLine("");
+                        break;
+                    }
+                }
+            }
+
+            // write results to file
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"../../../test/data/bcnisttv.data"))
+            {
+                file.WriteLine(stringBuilder.ToString());
+            }
+        }
+
         /**
          * Test squaring with specifically selected values that triggered a bug in the modular reduction
          * in OpenSSL (last affected version 0.9.8g).
