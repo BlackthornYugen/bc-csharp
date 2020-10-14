@@ -1,11 +1,14 @@
 ﻿using System;
-
+using System.Collections;
+using System.Text;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto.EC;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Org.BouncyCastle.Math.EC.Custom.Sec.Tests
 {
@@ -109,6 +112,69 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec.Tests
 
                 Assert.AreEqual(R, Z);
             }
+        }
+
+        public object[] CollectTestVectors()
+        {
+            var testData = new ArrayList();
+
+            var testVectorLines = System.IO.File.ReadAllLines(@"../../../test/data/nisttv.data");
+            StringBuilder stringBuilder = new StringBuilder();
+
+            string curve = null;
+            BigInteger k = null;
+            BigInteger x = null;
+            BigInteger y = null;
+
+            foreach (var line in testVectorLines)
+            {
+                var capture = new Regex(@"^ ?(\w+):? =? ?(\w+)", RegexOptions.Compiled);
+                var data = capture.Match(line);
+
+                if (!data.Success) continue;
+                var nistKey = data.Groups[1].Value;
+                var nistValue = data.Groups[2].Value;
+                switch(nistKey)
+                {
+                    case "Curve":
+                        // Change curve name from LNNN to L-NNN ie: P256 to P-256
+                        curve = $"{nistValue.Substring(0, 1)}-{nistValue.Substring(1)}";
+                        break;
+                    case "k":
+                        k = new BigInteger(nistValue, 10);
+                        break;
+                    case "x":
+                        x = new BigInteger(nistValue, radix: 16);
+                        break;
+                    case "y":
+                        y = new BigInteger(nistValue, radix: 16);
+                        break;
+                }
+
+                if (null != curve && null != k && null != x && null != y)
+                {
+                    testData.Add(new object[]{curve, k, x, y});
+                    k = null;
+                    x = null;
+                    y = null;
+                }
+            }
+
+            return testData.ToArray();
+        }
+
+        [TestCaseSource(nameof(CollectTestVectors))]
+        public void TestMultiply(string curve, BigInteger k, BigInteger expectedX, BigInteger expectedY)
+        {
+            // Arrange
+            var x9EcParameters = Asn1.Nist.NistNamedCurves.GetByName(curve);
+
+            // Act
+            var ecPoint = x9EcParameters.G.Multiply(k);
+
+            // Assert
+            Assert.AreEqual(expectedX, ecPoint.XCoord.ToBigInteger(), "Unexpected X Coordinate");
+            Assert.AreEqual(expectedY, ecPoint.YCoord.ToBigInteger(), "Unexpected Y Coordinate");
         }
 
         /**
