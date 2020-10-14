@@ -136,7 +136,10 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec.Tests
                     {
                         case "Curve":
                             stringBuilder.AppendFormat("\n Curve: {0}\n-------------\n", nistValue);
-                            nistValue = nistValue.Replace("P", "P-");
+
+                            // Change curve name from LNNN to L-NNN ie: P256 to P-256
+                            nistValue = $"{nistValue.Substring(0, 1)}-{nistValue.Substring(1)}";
+
                             curve = Asn1.Nist.NistNamedCurves.GetByName(nistValue);
                             break;
                         case "k":
