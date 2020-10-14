@@ -1,11 +1,13 @@
 ﻿using System;
-
+using System.Text;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto.EC;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Org.BouncyCastle.Math.EC.Custom.Sec.Tests
 {
@@ -108,6 +110,66 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec.Tests
                 BigInteger Z = z.ToBigInteger();
 
                 Assert.AreEqual(R, Z);
+            }
+        }
+
+        [Test]
+        public void TestMultiply()
+        {
+            var allLines = System.IO.File.ReadAllLines(@"../../../test/data/nisttv.data");
+            StringBuilder stringBuilder = new StringBuilder();
+            X9ECParameters curve = null;
+            BigInteger k = null;
+            ECFieldElement x = null;
+            ECFieldElement y = null;
+
+            foreach (var line in allLines)
+            {
+                var capture = new Regex(@"^ ?(\w+):? =? ?(\w+)", RegexOptions.Compiled);
+                var data = capture.Match(line);
+
+                if (data.Success)
+                {
+                    var nistKey = data.Groups[1].Value;
+                    var nistValue = data.Groups[2].Value;
+                    switch(nistKey)
+                    {
+                        case "Curve":
+                            stringBuilder.AppendFormat("\n Curve: {0}\n-------------\n", nistValue);
+                            nistValue = nistValue.Replace("P", "P-");
+                            curve = Asn1.Nist.NistNamedCurves.GetByName(nistValue);
+                            break;
+                        case "k":
+                            if (curve != null)
+                            {
+                                k = new BigInteger(nistValue, 10);
+
+                                var ecPoint = curve.G.Multiply(k);
+                                x = ecPoint.XCoord;
+                                y = ecPoint.YCoord;
+
+                                stringBuilder.AppendFormat("{0} = {1}\n", nistKey, nistValue);
+                                stringBuilder.AppendFormat("x = {0}\n", ecPoint.XCoord.ToString().ToUpper());
+                                stringBuilder.AppendFormat("y = {0}\n", ecPoint.YCoord.ToString().ToUpper());
+                                stringBuilder.AppendLine("");
+                            }
+                            break;
+                        case "x":
+                            // Assert.NotNull(x);
+                            // Assert.Equals(x.ToBigInteger(), new BigInteger(nistValue, radix: 16));
+                            break;
+                        case "y":
+                            // Assert.NotNull(y);
+                            // Assert.Equals(y.ToBigInteger(), new BigInteger(nistValue, radix: 16));
+                            break;
+                    }
+                }
+            }
+
+            // write results to file
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(@"../../../test/data/bcnisttv.data"))
+            {
+                file.WriteLine(stringBuilder.ToString());
             }
         }
 
